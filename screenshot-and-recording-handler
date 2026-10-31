@@ -1,31 +1,5 @@
 #!/bin/bash
 
-# AUTHOR: Ciuriya
-# no ai was used
-
-# REQUIREMENTS:
-# - slurp (https://github.com/emersion/slurp)
-# - grim (https://github.com/emersion/grim)
-# - wf-recorder (https://github.com/ammen99/wf-recorder)
-
-# this script serves as a barebones shareX replacement
-
-# it grabs slurp output and feeds it into grim/wf-recorder
-# to produce an output, which is fed directly to a file over the network
-# using sshfs
-
-# the resulting url is copied after the operation is successful.
-
-# to stop (finalize) a recording, simply call record/record-no-audio again.
-
-# valid arguments to call the script
-# - region
-# - record
-# - record-no-audio
-
-# example usage in hyprland
-# hl.bind("CONTROL + SHIFT + R", hl.dsp.exec_cmd("sh $HOME/.config/scripts/screenshot-and-recording-handler record"), { locked = true, submap_universal = true, non_consuming = false })
-
 MODE="${1}"
 
 [ -z "$MODE" ] && exit 1
