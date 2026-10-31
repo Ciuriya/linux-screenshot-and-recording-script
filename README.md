@@ -22,7 +22,9 @@ To stop (finalize) a recording, simply call record/record-no-audio again.
 
 # Install
 Drop it wherever you'd like and call it from your preferred hotkey / script hub. I only tested with hyprland.
+
 Make sure you go in the script and change the variables to match your paths and your needs.
+
 IMPORTANT: Create the temp folder for the temp files to actually have somewhere to go, unless you change those paths in the script.
 
 # Example setup in hyprland
