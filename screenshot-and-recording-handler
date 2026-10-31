@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# AUTHOR: Ciuriya
+# no ai was used
+
+# REQUIREMENTS:
+# - slurp (https://github.com/emersion/slurp)
+# - grim (https://github.com/emersion/grim)
+# - wf-recorder (https://github.com/ammen99/wf-recorder)
+
+# this script serves as a barebones shareX replacement
+
+# it grabs slurp output and feeds it into grim/wf-recorder
+# to produce an output, which is fed directly to a file over the network
+# using sshfs
+
+# the resulting url is copied after the operation is successful.
+
+# to stop (finalize) a recording, simply call record/record-no-audio again.
+
+# valid arguments to call the script
+# - region
+# - record
+# - record-no-audio
+
+# example usage in hyprland
+# hl.bind("CONTROL + SHIFT + R", hl.dsp.exec_cmd("sh $HOME/.config/scripts/screenshot-and-recording-handler record"), { locked = true, submap_universal = true, non_consuming = false })
+
+MODE="${1}"
+
+[ -z "$MODE" ] && exit 1
+
+# user-changeable variables start
+
+URL_PREFIX="https://ciuriya.com/s/"
+FILE_PATH="$HOME/kiwi/var/www/html/s/"
+FILE_NAME="$(date +%Y-%m-%d_%H-%M-%S)"
+SEND_NOTIFICATIONS="true"
+PLAY_NOTIFICATION_SOUND="true"
+NOTIFICATION_SOUND_VOLUME="25" # between 0-100
+NOTIFICATION_DURATION="5000" # in ms
+
+RECORD_ICON_LOCATION="$HOME/.config/scripts/images/record.png"
+RECORDING_URL_FILE="$HOME/.config/scripts/temp/temp-recording-url"
+RECORDING_NOTIF_FILE="$HOME/.config/scripts/temp/temp-recording-notif-id"
+RECORDING_NOTIF_AUDIO_FILE="/usr/share/sounds/freedesktop/stereo/complete.oga"
+RECORDING_START_NOTIF_HEADER="Recording..."
+RECORDING_START_NOTIF_BODY="Use CTRL + SHIFT + R/W to stop it."
+RECORDING_STOP_NOTIF_HEADER="Recording stopped"
+RECORDING_STOP_NOTIF_BODY="Copied URL to clipboard!"
+
+SCREENSHOT_ICON_LOCATION="$HOME/.config/scripts/images/screenshot.png"
+SCREENSHOT_NOTIF_AUDIO_FILE="/usr/share/sounds/freedesktop/stereo/screen-capture.oga"
+SCREENSHOT_NOTIF_HEADER="Screenshot taken"
+SCREENSHOT_NOTIF_BODY="Copied URL to clipboard!"
+
+# use "pactl list sources | grep Name" to find the correct source
+# I prefer not to have automatic detection but you could easily add it by grabbing the default sink
+RECORDING_AUDIO_DEVICE="alsa_output.usb-SENUCN_Digital_Hifi_Audio-00.analog-stereo.monitor"
+
+# user-changeable variables end
+
+grabAndValidateSlurpOutput() {
+    SLURP="$(slurp 2>&1)"
+
+    if [[ $SLURP =~ "cancel" ]]; then
+        exit 1
+    fi
+}
+
+playNotificationSound() {
+    if [[ $PLAY_NOTIFICATION_SOUND == "true" ]]; then
+        NOTIF_VOLUME="$((NOTIFICATION_SOUND_VOLUME * 65536 / 100))"
+        paplay --volume $NOTIF_VOLUME "$1" &
+    fi
+
+    return 1
+}
+
+sendScreenshotNotification() {
+    notify-send -a screenshot -u normal -i "$SCREENSHOT_ICON_LOCATION" -t "$NOTIFICATION_DURATION" "$SCREENSHOT_NOTIF_HEADER" "$SCREENSHOT_NOTIF_BODY"
+    playNotificationSound $SCREENSHOT_NOTIF_AUDIO_FILE
+}
+
+sendRecordingNotification() {
+    if [[ $SEND_NOTIFICATIONS == "true" ]]; then
+        if [[ -f $RECORDING_NOTIF_FILE ]]; then
+            RECORDING_NOTIF="$(cat "$RECORDING_NOTIF_FILE")"
+        else
+            RECORDING_NOTIF=""
+        fi
+
+        if [[ $1 == "start" ]]; then
+            RECORDING_NOTIF="$(notify-send -a recorder -u critical -i "$RECORD_ICON_LOCATION" -p "$RECORDING_START_NOTIF_HEADER" "$RECORDING_START_NOTIF_BODY")"
+        elif [[ $1 == "stop" ]]; then
+            notify-send -a recorder -u critical -i "$RECORD_ICON_LOCATION" -t "$NOTIFICATION_DURATION" -r "$RECORDING_NOTIF" "$RECORDING_STOP_NOTIF_HEADER" "$RECORDING_STOP_NOTIF_BODY"
+            playNotificationSound "$RECORDING_NOTIF_AUDIO_FILE"
+
+            RECORDING_NOTIF=""
+        fi
+
+        echo "$RECORDING_NOTIF" > "$RECORDING_NOTIF_FILE"
+    fi
+}
+
+handleRecordingStartStop() {
+    FILE_NAME="$FILE_NAME.mp4"
+
+    if [[ -f $RECORDING_URL_FILE ]]; then
+        RECORDING_URL="$(cat "$RECORDING_URL_FILE")"
+    else
+        RECORDING_URL=""
+    fi
+
+    if [[ $1 == "start" ]]; then
+        RECORDING_URL="$URL_PREFIX$FILE_NAME"
+    elif [[ ($1 == "stop") && ("$RECORDING_URL" != "") ]]; then
+        wl-copy "$RECORDING_URL"
+        RECORDING_URL=""
+    fi
+
+    echo "$RECORDING_URL" > "$RECORDING_URL_FILE"
+
+    sendRecordingNotification "$1"
+}
+
+findAndKillRecording() {
+    COUNT="$(pgrep -c 'wf-recorder')"
+
+    if [[ $COUNT -gt 0 ]]; then
+        killall -s SIGINT wf-recorder
+        handleRecordingStartStop stop
+        exit 1
+    fi
+}
+
+if [[ $MODE == "region" ]]; then
+    grabAndValidateSlurpOutput
+
+    FILE_NAME="$FILE_NAME.png"
+
+    grim -g "$SLURP" - | tee "$FILE_PATH$FILE_NAME"
+    wl-copy "$URL_PREFIX$FILE_NAME"
+
+    sendScreenshotNotification
+
+    exit 1
+fi
+
+findAndKillRecording
+grabAndValidateSlurpOutput
+
+if [[ $MODE == "record" ]]; then
+    handleRecordingStartStop start
+
+    wf-recorder -g "$SLURP" --audio="$RECORDING_AUDIO_DEVICE" --file="$FILE_PATH$FILE_NAME"
+elif [[ $MODE == "record-no-audio" ]]; then
+    handleRecordingStartStop start
+
+    wf-recorder -g "$SLURP" --file="$FILE_PATH$FILE_NAME"
+fi
