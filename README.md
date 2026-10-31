@@ -1,5 +1,7 @@
 # Screenshot and Recording script for linux
-I made this script as a personal replacement for my use of shareX.
+I made this script as a personal replacement for my use of ShareX.
+
+No AI was used in the making of this script.
 
 # How it works
 It grabs slurp output and feeds it into grim/wf-recorder to produce an output, 
@@ -24,6 +26,8 @@ To stop (finalize) a recording, simply call record/record-no-audio again.
 Drop it wherever you'd like and call it from your preferred hotkey / script hub. I only tested with hyprland.
 
 Make sure you go in the script and change the variables to match your paths and your needs.
+
+For example, there is no automatic audio device detection. You need to fill in your own.
 
 IMPORTANT: Create the temp folder for the temp files to actually have somewhere to go, unless you change those paths in the script.
 
